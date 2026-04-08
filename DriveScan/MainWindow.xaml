@@ -1,0 +1,235 @@
+<Window x:Class="DriveScan.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:DriveScan.Controls"
+        Title="disk0" Height="700" Width="1100" MinHeight="500" MinWidth="700"
+        Background="#FF1E1E2E" WindowStyle="None" AllowsTransparency="False"
+        ResizeMode="CanResizeWithGrip" WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <Style TargetType="Button" x:Key="AB">
+            <Setter Property="Background" Value="#FF3A3A5A"/><Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#FF5A5A8A"/><Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/><Setter Property="FontSize" Value="13"/><Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#FF4A4A7A"/></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
+                </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <Style TargetType="Button" x:Key="WB">
+            <Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="#FFAAAACC"/>
+            <Setter Property="BorderThickness" Value="0"/><Setter Property="Width" Value="36"/><Setter Property="Height" Value="28"/>
+            <Setter Property="FontSize" Value="14"/><Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+                <Border Background="{TemplateBinding Background}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#44FFFFFF"/></Trigger>
+                </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <Style TargetType="Button" x:Key="CB" BasedOn="{StaticResource WB}">
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+                <Border Background="{TemplateBinding Background}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FFE81123"/><Setter Property="Foreground" Value="White"/></Trigger>
+                </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <Style TargetType="ComboBox" x:Key="DC">
+            <Setter Property="Background" Value="#FF3A3A5A"/><Setter Property="Foreground" Value="Black"/>
+            <Setter Property="BorderBrush" Value="#FF5A5A8A"/><Setter Property="Padding" Value="8,4"/><Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style TargetType="ComboBoxItem"><Setter Property="Foreground" Value="Black"/></Style>
+        <Style TargetType="MenuItem"><Setter Property="Foreground" Value="#FF222222"/></Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title Bar + Menu -->
+        <Border Grid.Row="0" Background="#FF18182A" MouseLeftButtonDown="TitleBar_MouseDown">
+            <Grid Height="32">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="  disk0" Foreground="#FFAAAACC" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,12,0"/>
+                <Menu Grid.Column="1" Background="Transparent" Foreground="#FFAAAACC" VerticalAlignment="Center" FontSize="12">
+                    <MenuItem x:Name="MenuAnalysis" Header="Analysis" Foreground="#FFCCCCDD">
+                        <MenuItem x:Name="MenuTopLargest" Click="MenuTopLargest_Click"/>
+                        <MenuItem x:Name="MenuOld2" Click="MenuOld2_Click"/>
+                        <MenuItem x:Name="MenuOld5" Click="MenuOld5_Click"/>
+                        <Separator/>
+                        <MenuItem x:Name="MenuTemp" Click="MenuTemp_Click"/>
+                        <MenuItem x:Name="MenuDupes" Click="MenuDupes_Click"/>
+                        <MenuItem x:Name="MenuDeleteCand" Click="MenuDeleteCand_Click"/>
+                    </MenuItem>
+                    <MenuItem x:Name="MenuView" Header="View" Foreground="#FFCCCCDD">
+                        <MenuItem x:Name="MenuColorDefault" Click="MenuColorDefault_Click" IsCheckable="True" IsChecked="True"/>
+                        <MenuItem x:Name="MenuColorFileType" Click="MenuColorFileType_Click" IsCheckable="True"/>
+                        <MenuItem x:Name="MenuColorAge" Click="MenuColorAge_Click" IsCheckable="True"/>
+                        <Separator/>
+                        <MenuItem x:Name="MenuFileListOff" Click="MenuFileListOff_Click" IsCheckable="True"/>
+                        <MenuItem x:Name="MenuFileListSize" Click="MenuFileListSize_Click" IsCheckable="True" IsChecked="True"/>
+                        <MenuItem x:Name="MenuFileListSizeDate" Click="MenuFileListSizeDate_Click" IsCheckable="True"/>
+                        <Separator/>
+                        <MenuItem x:Name="MenuAutoScan" Click="MenuAutoScan_Click" IsCheckable="True"/>
+                        <Separator/>
+                        <MenuItem x:Name="MenuRegisterShell" Click="MenuRegisterShell_Click"/>
+                        <MenuItem x:Name="MenuUnregisterShell" Click="MenuUnregisterShell_Click"/>
+                    </MenuItem>
+                    <MenuItem x:Name="MenuLanguage" Header="Language" Foreground="#FFCCCCDD">
+                        <MenuItem x:Name="LangEN" Header="English" Click="LangEN_Click" IsCheckable="True"/>
+                        <MenuItem x:Name="LangDE" Header="Deutsch" Click="LangDE_Click" IsCheckable="True"/>
+                        <MenuItem x:Name="LangFR" Header="Français" Click="LangFR_Click" IsCheckable="True"/>
+                        <MenuItem x:Name="LangES" Header="Español" Click="LangES_Click" IsCheckable="True"/>
+                        <MenuItem x:Name="LangJA" Header="日本語" Click="LangJA_Click" IsCheckable="True"/>
+                        <MenuItem x:Name="LangZH" Header="中文" Click="LangZH_Click" IsCheckable="True"/>
+                        <MenuItem x:Name="LangRU" Header="Русский" Click="LangRU_Click" IsCheckable="True"/>
+                    </MenuItem>
+                    <MenuItem x:Name="MenuHelp" Header="Help" Foreground="#FFCCCCDD">
+                        <MenuItem x:Name="MenuUserGuide" Click="MenuUserGuide_Click"/>
+                        <MenuItem x:Name="MenuLegend" Click="MenuLegend_Click"/>
+                        <Separator/>
+                        <MenuItem x:Name="MenuAbout" Click="MenuAbout_Click"/>
+                    </MenuItem>
+                </Menu>
+                <StackPanel Grid.Column="3" Orientation="Horizontal">
+                    <Button Style="{StaticResource WB}" Content="&#x2015;" Click="Minimize_Click"/>
+                    <Button Style="{StaticResource WB}" x:Name="MaxBtn" Content="&#x25A1;" Click="MaxRestore_Click"/>
+                    <Button Style="{StaticResource CB}" Content="&#x2715;" Click="Close_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Toolbar -->
+        <Border Grid.Row="1" Background="#FF2A2A3E" Padding="10,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="LblView" Text="View:" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+                <ComboBox x:Name="ChartTypeCombo" Style="{StaticResource DC}" Width="130" Margin="0,0,10,0" FontSize="12" SelectionChanged="ChartTypeChanged">
+                    <ComboBoxItem x:Name="CbSunburst" Content="Sunburst" IsSelected="True"/>
+                    <ComboBoxItem x:Name="CbTreemap" Content="Treemap"/>
+                </ComboBox>
+                <TextBlock x:Name="LblDepth" Text="Depth:" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+                <ComboBox x:Name="DepthCombo" Style="{StaticResource DC}" Width="55" Margin="0,0,10,0" FontSize="12" SelectionChanged="DepthChanged">
+                    <ComboBoxItem Content="4"/><ComboBoxItem Content="5"/><ComboBoxItem Content="6" IsSelected="True"/>
+                    <ComboBoxItem Content="8"/><ComboBoxItem Content="10"/>
+                </ComboBox>
+                <Button x:Name="ScanButton" Style="{StaticResource AB}" Click="StartScan" FontSize="12" Padding="10,4"/>
+                <Button x:Name="BackButton" Style="{StaticResource AB}" Click="GoBack" IsEnabled="False" Margin="6,0,0,0" FontSize="12" Padding="10,4"/>
+                <Button x:Name="StopButton" Style="{StaticResource AB}" Click="StopScan" IsEnabled="False" Margin="6,0,0,0" FontSize="12" Padding="10,4"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Drive info bar -->
+        <Border Grid.Row="2" Background="#FF22223A" Padding="10,4" x:Name="DriveInfoBar" Visibility="Collapsed">
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock x:Name="DriveInfoTotal" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="DriveInfoUsed" Foreground="#FFAADDFF" FontSize="12" Margin="16,0,0,0"/>
+                    <TextBlock x:Name="DriveInfoFree" Foreground="#FF66CC88" FontSize="12" Margin="16,0,0,0"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1" x:Name="ScanProgressText" Foreground="#FFFFCC33" FontSize="13" FontWeight="Bold" Margin="20,0,0,0"/>
+            </Grid>
+        </Border>
+
+        <!-- Info bar -->
+        <Border Grid.Row="3" Background="#FF1A1A2E" Padding="10,5" x:Name="InfoPanelLeft">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="InfoPath" Foreground="White" FontSize="12" FontWeight="Bold" TextTrimming="CharacterEllipsis" MaxWidth="300" VerticalAlignment="Center"/>
+                <Button x:Name="OpenExplorerBtn" Content="&#x1F4C2;" Style="{StaticResource AB}" FontSize="11" Padding="4,1" Margin="6,0,0,0"
+                        Click="OpenExplorer_Click" ToolTip="Explorer" Visibility="Collapsed"/>
+                <TextBlock x:Name="InfoSize" Foreground="#FFAADDFF" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                <TextBlock x:Name="InfoFiles" Foreground="#FFAADDFF" FontSize="11" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                <TextBlock x:Name="InfoDirs" Foreground="#FF8899BB" FontSize="11" VerticalAlignment="Center" Margin="12,0,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main: drive list + chart + file list -->
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: Drive list -->
+            <Border Grid.Column="0" Background="#FF1A1A2E" Width="80" Padding="4">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ListBox Grid.Row="0" x:Name="DriveListBox" Background="Transparent" BorderThickness="0"
+                             SelectionChanged="DriveList_SelectionChanged"
+                             HorizontalContentAlignment="Stretch">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="#FFAAAACC"/>
+                                <Setter Property="Padding" Value="6,6"/>
+                                <Setter Property="FontSize" Value="13"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="#FF3A3A6A"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#FF2A2A4A"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
+                    <Button Grid.Row="1" x:Name="BtnAddNetwork" Content="+" Style="{StaticResource AB}"
+                            FontSize="16" Padding="4,2" Margin="4" Click="AddNetwork_Click"
+                            ToolTip="Add network path"/>
+                </Grid>
+            </Border>
+
+            <!-- Center: Chart -->
+            <Grid Grid.Column="1">
+                <controls:SunburstChart x:Name="SunburstView" Margin="2"/>
+                <controls:TreemapChart x:Name="TreemapView" Margin="2" Visibility="Collapsed"/>
+            </Grid>
+
+            <!-- Right: File list -->
+            <Border Grid.Column="2" Background="#FF22223A" Width="280" x:Name="FileListPanel" Visibility="Collapsed">
+                <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <Border Grid.Row="0" Background="#FF2A2A3E" Padding="8,6">
+                        <TextBlock x:Name="FileListTitle" Foreground="White" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    </Border>
+                    <ListBox Grid.Row="1" x:Name="FileListBox" Background="Transparent" BorderThickness="0" Foreground="White" FontSize="11"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             MouseDoubleClick="FileListBox_DoubleClick">
+                        <ListBox.ItemTemplate><DataTemplate><Grid Margin="2,1">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding Name}" Foreground="#FFCCCCDD" TextTrimming="CharacterEllipsis" FontSize="11"/>
+                            <TextBlock Grid.Column="1" Text="{Binding SizeText}" Foreground="#FF8899BB" FontSize="11" Margin="6,0,0,0"/>
+                            <TextBlock Grid.Column="2" Text="{Binding DateText}" Foreground="#FF666688" FontSize="10" Margin="6,0,0,0"/>
+                        </Grid></DataTemplate></ListBox.ItemTemplate>
+                        <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem">
+                            <Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="4,2"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        </Style></ListBox.ItemContainerStyle>
+                    </ListBox>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="5" Background="#FF18182A" Padding="10,6">
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" x:Name="StatusPath" Foreground="#FFAAAACC" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Grid.Column="1" x:Name="DirCountText" Foreground="#FF8899BB" FontSize="12" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                <TextBlock Grid.Column="2" x:Name="FileCountText" Foreground="#FF8899BB" FontSize="12" VerticalAlignment="Center" Margin="16,0,0,0"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
