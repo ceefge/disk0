@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private int _fileListMode = 1;
     private AppSettings _settings = null!;
     private string _selectedDrivePath = @"C:\";
+    private bool _suppressDriveAutoScan;
 
     public MainWindow()
     {
@@ -134,7 +135,11 @@ public partial class MainWindow : Window
                 });
             });
 
+        // Pre-select C: on startup without triggering an automatic scan;
+        // launch-time scanning is governed by AutoScanOnStart / --scan instead.
+        _suppressDriveAutoScan = true;
         DriveListBox.SelectedIndex = 0;
+        _suppressDriveAutoScan = false;
     }
 
     private async Task UpdateEncryptionStatusAsync()
@@ -216,9 +221,9 @@ public partial class MainWindow : Window
                 item.BorderBrush = new SolidColorBrush(Color.FromRgb(220, 160, 40));
             item.BorderThickness = new Thickness(2);
 
-            // A folder or network path was selected: start scanning automatically.
-            // Drive roots (C:\, D:\) keep the manual Scan-button behaviour.
-            if (IsLoaded && !isRoot)
+            // Any selection (drive root, folder or network path) starts scanning
+            // automatically. The initial C: pre-selection at startup is suppressed.
+            if (IsLoaded && !_suppressDriveAutoScan)
                 StartScan(this, new RoutedEventArgs());
         }
     }
