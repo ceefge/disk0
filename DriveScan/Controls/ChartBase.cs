@@ -41,6 +41,9 @@ public abstract class ChartBase : FrameworkElement
     public long DriveTotalBytes { get; set; }
     public long DriveFreeBytes { get; set; }
 
+    /// <summary>File type size breakdown for the selected node (used in FileType color mode).</summary>
+    public Dictionary<string, long>? SelectedNodeFileTypes { get; set; }
+
     public event Action<DirectoryNode?>? HoverChanged;
     public event Action<DirectoryNode>? NodeClicked;
     public event Action<DirectoryNode>? ZoomRequested;
@@ -50,6 +53,7 @@ public abstract class ChartBase : FrameworkElement
 
     private readonly DispatcherTimer _hoverThrottle;
     private bool _hoverDirty;
+    private DirectoryNode? _lastReportedHoveredNode;
 
     private static readonly Color[] Palette =
     [
@@ -107,21 +111,16 @@ public abstract class ChartBase : FrameworkElement
 
     protected ChartBase()
     {
-        _hoverThrottle = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(60) };
+        _hoverThrottle = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
         _hoverThrottle.Tick += (_, _) =>
         {
             _hoverThrottle.Stop();
             if (_hoverDirty)
             {
                 _hoverDirty = false;
-                var oldHovered = HoveredNode;
                 HoveredNode = null;
                 InvalidateVisual();
-                if (HoveredNode != oldHovered)
-                {
-                    HoverChanged?.Invoke(HoveredNode);
-                    UpdateTooltip();
-                }
+                // Hover event fires from NotifyHoverChange() at end of OnRender
             }
         };
 
@@ -158,8 +157,10 @@ public abstract class ChartBase : FrameworkElement
         _hoverThrottle.Stop();
         _hoverDirty = false;
         HoveredNode = null;
+        _lastReportedHoveredNode = null;
         InvalidateVisual();
         HoverChanged?.Invoke(null);
+        UpdateTooltip();
     }
 
     private void OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -256,6 +257,25 @@ public abstract class ChartBase : FrameworkElement
             Arguments = path,
             UseShellExecute = true
         });
+    }
+
+    /// <summary>Call at end of OnRender to fire hover events after HoveredNode is set.</summary>
+    protected void NotifyHoverChange()
+    {
+        if (!ReferenceEquals(HoveredNode, _lastReportedHoveredNode))
+        {
+            _lastReportedHoveredNode = HoveredNode;
+            Dispatcher.BeginInvoke(() =>
+            {
+                HoverChanged?.Invoke(HoveredNode);
+                UpdateTooltip();
+            });
+        }
+    }
+
+    protected static Color GetFileTypeColorByExt(string ext)
+    {
+        return FileTypeColors.TryGetValue(ext, out var c) ? c : Color.FromRgb(100, 100, 120);
     }
 
     protected Color GetNodeColor(DirectoryNode node, int depth, double angle)

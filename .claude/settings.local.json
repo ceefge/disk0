@@ -5,7 +5,15 @@
       "Bash(dotnet build:*)",
       "Bash(dotnet publish:*)",
       "Bash(dotnet run:*)",
-      "Bash(taskkill //F //IM DriveScan.exe)"
+      "Bash(taskkill //F //IM DriveScan.exe)",
+      "Bash(gh repo:*)",
+      "Bash(taskkill /PID 10376 /F)",
+      "Bash(taskkill /IM DriveScan.exe /F)",
+      "Bash(tasklist)",
+      "Bash(taskkill /PID 9708 /F)",
+      "Bash(taskkill //PID 10376 //F)",
+      "Bash(taskkill //PID 9708 //F)",
+      "Bash(taskkill:*)"
     ]
   }
 }

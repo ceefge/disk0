@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Lang = DriveScan.Services.Language;
 using DriveScan.Controls;
@@ -45,6 +46,7 @@ public partial class MainWindow : Window
             _settings.DisclaimerAccepted = true; _settings.Save();
         }
 
+        CreateAppIcon();
         SunburstView.HoverChanged += OnHoverChanged; TreemapView.HoverChanged += OnHoverChanged;
         SunburstView.NodeClicked += OnNodeClicked; TreemapView.NodeClicked += OnNodeClicked;
         SunburstView.ZoomRequested += OnZoomRequested; TreemapView.ZoomRequested += OnZoomRequested;
@@ -64,8 +66,7 @@ public partial class MainWindow : Window
         // If launched with --scan argument, scan that path
         if (!string.IsNullOrEmpty(App.StartScanPath))
         {
-            AddPathToDriveList(App.StartScanPath);
-            StartScan(this, new RoutedEventArgs());
+            AddPathToDriveList(App.StartScanPath); // auto-starts the scan
         }
         else if (_settings.AutoScanOnStart)
         {
@@ -111,18 +112,95 @@ public partial class MainWindow : Window
         DriveListBox.Items.Add(new ListBoxItem { Content = "C:", Tag = @"C:\", FontWeight = FontWeights.Bold });
 
         _ = Task.Run(() => DriveInfo.GetDrives()
-            .Where(d => d.IsReady && !d.Name.StartsWith("C", StringComparison.OrdinalIgnoreCase))
-            .Select(d => d.Name).ToList())
+            .Where(d => !d.Name.StartsWith("C", StringComparison.OrdinalIgnoreCase))
+            .Select(d => new { d.Name, d.IsReady }).ToList())
             .ContinueWith(t =>
             {
                 Dispatcher.Invoke(() =>
                 {
-                    foreach (var n in t.Result)
-                        DriveListBox.Items.Add(new ListBoxItem { Content = n.TrimEnd('\\'), Tag = n });
+                    foreach (var d in t.Result)
+                    {
+                        var item = new ListBoxItem
+                        {
+                            Content = d.Name.TrimEnd('\\'),
+                            Tag = d.Name,
+                            IsEnabled = d.IsReady,
+                            Opacity = d.IsReady ? 1.0 : 0.4
+                        };
+                        if (!d.IsReady) item.ToolTip = L10n.Get("DriveNotReady");
+                        DriveListBox.Items.Add(item);
+                    }
+                    _ = UpdateEncryptionStatusAsync();
                 });
             });
 
         DriveListBox.SelectedIndex = 0;
+    }
+
+    private async Task UpdateEncryptionStatusAsync()
+    {
+        var statuses = await Task.Run(() => GetAllBitLockerStatusesAsync());
+        foreach (ListBoxItem item in DriveListBox.Items)
+        {
+            var tag = item.Tag as string;
+            if (tag == null || tag.Length > 4) continue;
+            char letter = char.ToUpper(tag[0]);
+            if (statuses.TryGetValue(letter, out var status))
+            {
+                item.Content = $"{item.Content} {status.Icon}";
+                item.ToolTip = $"{tag.TrimEnd('\\')}  {status.Text}";
+            }
+        }
+    }
+
+    private static Dictionary<char, (string Icon, string Text)> GetAllBitLockerStatusesAsync()
+    {
+        var result = new Dictionary<char, (string Icon, string Text)>();
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "manage-bde",
+                Arguments = "-status",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            using var proc = Process.Start(psi);
+            if (proc == null) return result;
+            if (!proc.WaitForExit(5000)) { try { proc.Kill(); } catch { } return result; }
+            string output = proc.StandardOutput.ReadToEnd();
+
+            char currentDrive = '\0';
+            foreach (var rawLine in output.Split('\n'))
+            {
+                var line = rawLine.Trim();
+                // Detect volume header: "Volume C:" or "Volume D: [Label]"
+                if (line.StartsWith("Volume ", StringComparison.OrdinalIgnoreCase) && line.Contains(':'))
+                {
+                    for (int i = 7; i < line.Length - 1; i++)
+                    {
+                        if (line[i + 1] == ':' && char.IsLetter(line[i]))
+                        { currentDrive = char.ToUpper(line[i]); break; }
+                    }
+                }
+                else if (currentDrive != '\0' && line.Contains(':') &&
+                    (line.StartsWith("Protection Status", StringComparison.OrdinalIgnoreCase) ||
+                     line.StartsWith("Schutzstatus", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var value = line[(line.IndexOf(':') + 1)..].Trim();
+                    bool isOn = value.Contains("On", StringComparison.OrdinalIgnoreCase) ||
+                                value.Contains("aktiviert", StringComparison.OrdinalIgnoreCase);
+                    result[currentDrive] = isOn
+                        ? ("\U0001F512", "BitLocker: " + L10n.Get("Encrypted"))
+                        : ("\U0001F513", "BitLocker: " + L10n.Get("NotEncrypted"));
+                    currentDrive = '\0';
+                }
+            }
+        }
+        catch { }
+        return result;
     }
 
     private void DriveList_SelectionChanged(object s, SelectionChangedEventArgs e)
@@ -137,6 +215,11 @@ public partial class MainWindow : Window
             if (isRoot)
                 item.BorderBrush = new SolidColorBrush(Color.FromRgb(220, 160, 40));
             item.BorderThickness = new Thickness(2);
+
+            // A folder or network path was selected: start scanning automatically.
+            // Drive roots (C:\, D:\) keep the manual Scan-button behaviour.
+            if (IsLoaded && !isRoot)
+                StartScan(this, new RoutedEventArgs());
         }
     }
 
@@ -180,6 +263,8 @@ public partial class MainWindow : Window
         // Shorten display label
         string label = path.Length > 12 ? "..." + path[^12..] : path;
         DriveListBox.Items.Add(new ListBoxItem { Content = label, Tag = path, ToolTip = path });
+        // Selecting the item triggers DriveList_SelectionChanged, which sets
+        // _selectedDrivePath and auto-starts the scan for folder/network paths.
         DriveListBox.SelectedIndex = DriveListBox.Items.Count - 1;
     }
     #endregion
@@ -366,10 +451,94 @@ public partial class MainWindow : Window
     #endregion
 
     #region Chart Events
-    private void OnHoverChanged(DirectoryNode? node) { if (node != null) ShowInfoLeftForNode(node);
-        else if (!_isScanning) { if (_selectedInfoNode != null) ShowInfoLeftForNode(_selectedInfoNode); else ShowInfoLeftRoot(); } }
-    private void OnNodeClicked(DirectoryNode node) { _selectedInfoNode = node; SunburstView.SelectedNode = node; TreemapView.SelectedNode = node;
-        ShowInfoLeftForNode(node); if (_fileListMode > 0) _ = LoadFileListAsync(node); }
+    private void OnHoverChanged(DirectoryNode? node)
+    {
+        if (node != null)
+        {
+            ShowInfoLeftForNode(node);
+            if (GetActiveChart().ColorMode == ColorMode.Age && !node.IsFile)
+                _ = ShowAgeInfoAsync(node);
+        }
+        else if (!_isScanning)
+        {
+            if (_selectedInfoNode != null) ShowInfoLeftForNode(_selectedInfoNode);
+            else ShowInfoLeftRoot();
+        }
+    }
+
+    private async Task ShowAgeInfoAsync(DirectoryNode node)
+    {
+        var path = node.FullPath;
+        var nodeRef = node;
+        var (oldest, newest) = await Task.Run(() =>
+        {
+            DateTime? o = null, n = null;
+            try
+            {
+                foreach (var f in new DirectoryInfo(path).EnumerateFiles())
+                {
+                    try { var lw = f.LastWriteTime; if (o == null || lw < o) o = lw; if (n == null || lw > n) n = lw; }
+                    catch { }
+                }
+            }
+            catch { }
+            return (o, n);
+        });
+        if (GetActiveChart().HoveredNode == nodeRef && oldest != null && newest != null)
+            InfoDirs.Text = $"{oldest:dd.MM.yyyy} \u2013 {newest:dd.MM.yyyy}";
+    }
+
+    private CancellationTokenSource? _fileTypeBreakdownCts;
+
+    private void OnNodeClicked(DirectoryNode node)
+    {
+        _selectedInfoNode = node;
+        SunburstView.SelectedNode = node; TreemapView.SelectedNode = node;
+        ShowInfoLeftForNode(node);
+        if (_fileListMode > 0) _ = LoadFileListAsync(node);
+
+        // Compute file type breakdown for selected node in FileType mode
+        if (GetActiveChart().ColorMode == ColorMode.FileType && !node.IsFile)
+            _ = ComputeFileTypeBreakdownAsync(node);
+        else
+        { SunburstView.SelectedNodeFileTypes = null; TreemapView.SelectedNodeFileTypes = null; }
+    }
+
+    private async Task ComputeFileTypeBreakdownAsync(DirectoryNode node)
+    {
+        _fileTypeBreakdownCts?.Cancel();
+        _fileTypeBreakdownCts = new CancellationTokenSource();
+        var token = _fileTypeBreakdownCts.Token;
+        var path = node.FullPath;
+
+        var breakdown = await Task.Run(() =>
+        {
+            var result = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                foreach (var f in new DirectoryInfo(path).EnumerateFiles("*", SearchOption.AllDirectories))
+                {
+                    if (token.IsCancellationRequested) break;
+                    try
+                    {
+                        var ext = Path.GetExtension(f.Name).ToLowerInvariant();
+                        if (string.IsNullOrEmpty(ext)) ext = ".*";
+                        result[ext] = result.GetValueOrDefault(ext) + f.Length;
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+            return result;
+        }, token);
+
+        if (!token.IsCancellationRequested && _selectedInfoNode == node)
+        {
+            SunburstView.SelectedNodeFileTypes = breakdown;
+            TreemapView.SelectedNodeFileTypes = breakdown;
+            GetActiveChart().InvalidateVisual();
+        }
+    }
     private async Task LoadFileListAsync(DirectoryNode node)
     { if (node.IsFile || _fileListMode == 0) { FileListPanel.Visibility = Visibility.Collapsed; return; }
       var L = L10n.Get; FileListTitle.Text = $"{L("Files")}: {node.Name}"; FileListPanel.Visibility = Visibility.Visible; FileListBox.ItemsSource = null;
@@ -386,6 +555,75 @@ public partial class MainWindow : Window
       if (r == MessageBoxResult.Yes) { try { Directory.Delete(node.FullPath, true); MessageBox.Show(L("DeletedRescan"), L("Deleted"), MessageBoxButton.OK, MessageBoxImage.Information); }
           catch (Exception ex) { MessageBox.Show($"{L("ErrorDeleting")}\n{ex.Message}", L("Error"), MessageBoxButton.OK, MessageBoxImage.Error); } } }
     private void GoBack(object s, RoutedEventArgs e) { if (_scanRoot != null) { ClearSelection(); SetChartRoot(_scanRoot); ShowInfoLeftRoot(); FileListPanel.Visibility = Visibility.Collapsed; GetActiveChart().InvalidateVisual(); } }
+    #endregion
+
+    #region App Icon
+    private void CreateAppIcon()
+    {
+        var dv = new DrawingVisual();
+        using (var dc = dv.RenderOpen())
+        {
+            var center = new Point(16, 16);
+
+            // Background circle
+            dc.DrawEllipse(
+                new SolidColorBrush(Color.FromRgb(26, 26, 46)), null, center, 16, 16);
+
+            // Outer ring segments (sunburst style)
+            DrawIconRing(dc, center, 10, 14, 0, 90, Color.FromRgb(46, 139, 87));
+            DrawIconRing(dc, center, 10, 14, 90, 110, Color.FromRgb(30, 100, 200));
+            DrawIconRing(dc, center, 10, 14, 200, 80, Color.FromRgb(200, 50, 50));
+            DrawIconRing(dc, center, 10, 14, 280, 80, Color.FromRgb(220, 120, 30));
+
+            // Inner ring segments
+            DrawIconRing(dc, center, 5.5, 9, 0, 130, Color.FromRgb(50, 160, 100));
+            DrawIconRing(dc, center, 5.5, 9, 130, 100, Color.FromRgb(40, 120, 220));
+            DrawIconRing(dc, center, 5.5, 9, 230, 130, Color.FromRgb(180, 80, 80));
+
+            // Center circle
+            dc.DrawEllipse(
+                new SolidColorBrush(Color.FromRgb(40, 40, 55)), null, center, 4.5, 4.5);
+
+            // Green badge (bottom-right)
+            dc.DrawEllipse(
+                new SolidColorBrush(Color.FromRgb(50, 200, 80)),
+                new Pen(new SolidColorBrush(Color.FromRgb(26, 26, 46)), 2),
+                new Point(25, 25), 6, 6);
+
+            // Checkmark in badge
+            var checkPen = new Pen(Brushes.White, 1.8)
+                { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+            dc.DrawLine(checkPen, new Point(22.5, 25), new Point(24.5, 27.5));
+            dc.DrawLine(checkPen, new Point(24.5, 27.5), new Point(28, 22.5));
+        }
+        var rtb = new RenderTargetBitmap(32, 32, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(dv);
+        Icon = BitmapFrame.Create(rtb);
+    }
+
+    private static void DrawIconRing(DrawingContext dc, Point center, double innerR, double outerR,
+        double startAngle, double sweep, Color color)
+    {
+        double startRad = (startAngle - 90) * Math.PI / 180.0;
+        double endRad = (startAngle + sweep - 90) * Math.PI / 180.0;
+        bool isLarge = sweep > 180;
+
+        var outerStart = new Point(center.X + outerR * Math.Cos(startRad), center.Y + outerR * Math.Sin(startRad));
+        var outerEnd = new Point(center.X + outerR * Math.Cos(endRad), center.Y + outerR * Math.Sin(endRad));
+        var innerStart = new Point(center.X + innerR * Math.Cos(endRad), center.Y + innerR * Math.Sin(endRad));
+        var innerEnd = new Point(center.X + innerR * Math.Cos(startRad), center.Y + innerR * Math.Sin(startRad));
+
+        var geo = new StreamGeometry();
+        using (var ctx = geo.Open())
+        {
+            ctx.BeginFigure(outerStart, true, true);
+            ctx.ArcTo(outerEnd, new Size(outerR, outerR), 0, isLarge, SweepDirection.Clockwise, true, false);
+            ctx.LineTo(innerStart, true, false);
+            ctx.ArcTo(innerEnd, new Size(innerR, innerR), 0, isLarge, SweepDirection.Counterclockwise, true, false);
+        }
+        geo.Freeze();
+        dc.DrawGeometry(new SolidColorBrush(color), new Pen(Brushes.Black, 0.3), geo);
+    }
     #endregion
 
     private static string FormatSize(long bytes)

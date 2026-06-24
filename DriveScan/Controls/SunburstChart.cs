@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using DriveScan.Models;
+using DriveScan.Services;
 
 namespace DriveScan.Controls;
 
@@ -48,21 +49,57 @@ public class SunburstChart : ChartBase
             new Pen(new SolidColorBrush(Color.FromRgb(70, 70, 90)), 1),
             center, centerRadius, centerRadius);
 
-        // Center text: always show root name + size
-        string rootName = RootNode.Name;
-        if (rootName.Length > 18) rootName = rootName[..16] + "..";
+        // Center text: size number + unit (no label at top level, dir name when zoomed)
+        long displaySize = DriveTotalBytes > 0 ? DriveTotalBytes : totalScanned;
+        var (sizeNum, sizeUnit) = FormatSizeComponents(displaySize);
+        bool isTopLevel = ScanRoot == null || ReferenceEquals(RootNode, ScanRoot);
 
-        var ftName = MakeText(rootName, centerRadius > 40 ? 13 : 10, typeface, Brushes.White);
-        ftName.TextAlignment = TextAlignment.Center;
-        ftName.MaxTextWidth = centerRadius * 1.8;
-        ftName.MaxLineCount = 1;
-        ftName.Trimming = TextTrimming.CharacterEllipsis;
-        dc.DrawText(ftName, new Point(center.X, center.Y - 18));
+        double fontNum = Math.Clamp(centerRadius * 0.50, 14, 32);
+        double fontUnit = Math.Clamp(centerRadius * 0.22, 8, 12);
 
-        var ftSize = MakeText(FormatSize(totalScanned), centerRadius > 40 ? 11 : 9, typefaceNormal,
-            new SolidColorBrush(Color.FromRgb(170, 190, 220)));
-        ftSize.TextAlignment = TextAlignment.Center;
-        dc.DrawText(ftSize, new Point(center.X, center.Y + 2));
+        var ftNum = MakeText(sizeNum, fontNum, typeface, Brushes.White);
+        ftNum.TextAlignment = TextAlignment.Center;
+
+        var ftUnit = MakeText(sizeUnit, fontUnit, typefaceNormal, new SolidColorBrush(Color.FromRgb(170, 190, 220)));
+        ftUnit.TextAlignment = TextAlignment.Center;
+
+        if (!isTopLevel)
+        {
+            double fontLabel = Math.Clamp(centerRadius * 0.22, 8, 12);
+            var ftLabel = MakeText(RootNode.Name, fontLabel, typefaceNormal, new SolidColorBrush(Color.FromRgb(170, 190, 220)));
+            ftLabel.TextAlignment = TextAlignment.Center;
+            ftLabel.MaxTextWidth = centerRadius * 1.7;
+            ftLabel.MaxLineCount = 1;
+            ftLabel.Trimming = TextTrimming.CharacterEllipsis;
+
+            double totalTextH = ftLabel.Height + ftNum.Height + ftUnit.Height + 2;
+            double startY = center.Y - totalTextH / 2;
+            dc.DrawText(ftLabel, new Point(center.X, startY));
+            dc.DrawText(ftNum, new Point(center.X, startY + ftLabel.Height));
+            dc.DrawText(ftUnit, new Point(center.X, startY + ftLabel.Height + ftNum.Height + 2));
+        }
+        else
+        {
+            double totalTextH = ftNum.Height + ftUnit.Height + 2;
+            double startY = center.Y - totalTextH / 2;
+            dc.DrawText(ftNum, new Point(center.X, startY));
+            dc.DrawText(ftUnit, new Point(center.X, startY + ftNum.Height + 2));
+        }
+
+        NotifyHoverChange();
+    }
+
+    private static (string number, string unit) FormatSizeComponents(long bytes)
+    {
+        if (bytes >= 1024L * 1024 * 1024 * 1024)
+            return ($"{bytes / (1024.0 * 1024 * 1024 * 1024):F2}", "TB");
+        if (bytes >= 1024L * 1024 * 1024)
+            return ($"{bytes / (1024.0 * 1024 * 1024):F2}", "GB");
+        if (bytes >= 1024L * 1024)
+            return ($"{bytes / (1024.0 * 1024):F1}", "MB");
+        if (bytes >= 1024)
+            return ($"{bytes / 1024.0:F1}", "KB");
+        return ($"{bytes}", "B");
     }
 
     private static FormattedText MakeText(string text, double fontSize, Typeface typeface, Brush brush)
@@ -116,15 +153,36 @@ public class SunburstChart : ChartBase
             double childSweep = (double)childSize / totalSize * sweepAngle;
             if (childSweep < 0.3) continue;
 
-            var color = GetNodeColor(child, depth, currentAngle);
-            bool dashed = child.IsRecycleBin;
-            DrawArcSegment(dc, center, innerRadius, outerRadius, currentAngle, childSweep, color, dashed);
-
-            // Highlight selected node
-            if (SelectedNode != null && ReferenceEquals(child, SelectedNode))
+            // Draw segment: subdivided by file type for selected node, or normal
+            if (ColorMode == ColorMode.FileType && SelectedNode != null &&
+                ReferenceEquals(child, SelectedNode) && SelectedNodeFileTypes is { Count: > 0 })
             {
-                DrawArcSegment(dc, center, innerRadius, outerRadius, currentAngle, childSweep,
-                    SelectedHighlightColor);
+                long typeTotal = SelectedNodeFileTypes.Values.Sum();
+                if (typeTotal > 0)
+                {
+                    double subAngle = currentAngle;
+                    foreach (var kv in SelectedNodeFileTypes.OrderByDescending(kv => kv.Value))
+                    {
+                        double subSweep = (double)kv.Value / typeTotal * childSweep;
+                        if (subSweep < 0.3) continue;
+                        DrawArcSegment(dc, center, innerRadius, outerRadius, subAngle, subSweep,
+                            GetFileTypeColorByExt(kv.Key));
+                        subAngle += subSweep;
+                    }
+                }
+            }
+            else
+            {
+                var color = GetNodeColor(child, depth, currentAngle);
+                bool dashed = child.IsRecycleBin;
+                DrawArcSegment(dc, center, innerRadius, outerRadius, currentAngle, childSweep, color, dashed);
+
+                // Highlight selected node
+                if (SelectedNode != null && ReferenceEquals(child, SelectedNode))
+                {
+                    DrawArcSegment(dc, center, innerRadius, outerRadius, currentAngle, childSweep,
+                        SelectedHighlightColor);
+                }
             }
 
             if (_mousePosition.HasValue &&

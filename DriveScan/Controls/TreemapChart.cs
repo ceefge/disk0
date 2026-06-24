@@ -24,6 +24,8 @@ public class TreemapChart : ChartBase
         {
             // Swallow rendering errors during concurrent scan
         }
+
+        NotifyHoverChange();
     }
 
     private void LayoutChildren(DrawingContext dc, DirectoryNode node, Rect rect, int depth, int maxDepth)
