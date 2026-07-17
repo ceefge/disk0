@@ -1,0 +1,27 @@
+# Build output
+bin/
+obj/
+publish/
+out/
+
+# IDE / tooling
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# TeamsPoll runtime data (SQLite + WAL/SHM sidecars)
+polls.db
+polls.db-wal
+polls.db-shm
+*.db-wal
+*.db-shm
+
+# Teams app package
+teamspoll-app.zip
+
+# Secrets — never commit real bot credentials
+appsettings.*.local.json
+*.secrets.json
