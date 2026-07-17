@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>TeamsPoll.Server</RootNamespace>
+    <AssemblyName>TeamsPoll.Server</AssemblyName>
+    <UserSecretsId>teamspoll-server</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Microsoft Bot Framework for Teams integration (self-hostable). -->
+    <PackageReference Include="Microsoft.Bot.Builder.Integration.AspNet.Core" Version="4.22.7" />
+    <!-- Lightweight, file-based storage for polls and votes. -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.8" />
+    <!-- Explicit reference: we build Adaptive Cards as JObject to use Teams-only
+         features (Action.Execute, refresh, msteams) that the typed model omits. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>

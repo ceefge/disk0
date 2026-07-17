@@ -4,3 +4,11 @@ obj/
 *.user
 *.suo
 publish/
+
+# TeamsPoll runtime data (SQLite + WAL/SHM sidecars)
+polls.db
+polls.db-wal
+polls.db-shm
+*.db-wal
+*.db-shm
+teamspoll-app.zip
